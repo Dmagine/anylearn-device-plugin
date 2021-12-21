@@ -55,6 +55,10 @@ type GpuDeviceManager struct {
 	skipMigEnabledGPUs bool
 }
 
+type AnylearnDeviceManager struct {
+	isBestEffort bool
+}
+
 // MigDeviceManager implements the ResourceManager interface for MIG devices
 type MigDeviceManager struct {
 	strategy MigStrategy
@@ -64,6 +68,12 @@ type MigDeviceManager struct {
 func check(err error) {
 	if err != nil {
 		log.Panicln("Fatal:", err)
+	}
+}
+
+func NewAnylearnDeviceManager(isBestEffort bool) *AnylearnDeviceManager {
+	return &AnylearnDeviceManager{
+		isBestEffort: isBestEffort,
 	}
 }
 
@@ -80,6 +90,20 @@ func NewMigDeviceManager(strategy MigStrategy, resource string) *MigDeviceManage
 		strategy: strategy,
 		resource: resource,
 	}
+}
+
+func (ad *AnylearnDeviceManager) Devices() []*Device {
+	n, err := nvml.GetDeviceCount()
+	check(err)
+
+	var devs []*Device
+	for i := uint(0); i < n; i++ {
+		d, err := nvml.NewDeviceLite(i)
+		check(err)
+		devs = append(devs, buildDevice(d, []string{d.Path}, fmt.Sprintf("%v", i)))
+	}
+
+	return devs
 }
 
 // Devices returns a list of devices from the GpuDeviceManager
