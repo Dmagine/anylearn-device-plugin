@@ -7,6 +7,7 @@ require (
 	github.com/NVIDIA/gpu-monitoring-tools v0.0.0-20211102125545-5a2c58442e48
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
+	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/urfave/cli/v2 v2.3.0
 	golang.org/x/net v0.0.0-20211216030914-fe4d6282115f
