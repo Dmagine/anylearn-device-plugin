@@ -18,6 +18,12 @@ const (
 	DeviceListEnvvar       = "NVIDIA_VISIBLE_DEVICES"
 )
 
+// Socket Path
+const (
+	GuaranteeSocket  = "anylearn-guarantee-gpu.sock"
+	BestEffortSocket = "anylearn-besteffort-gpu.sock"
+)
+
 const (
 	RetryTimes = 8
 )

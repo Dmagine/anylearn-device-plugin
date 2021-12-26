@@ -104,8 +104,8 @@ func (controller *AnylearnDevicePluginController) checkDeviceHealth() {
 		err = nvml.RegisterEventForDevice(eventSet, nvml.XidCriticalError, gpu)
 		if err != nil && strings.HasSuffix(err.Error(), "Not Supported") {
 			log.WithError(err).WithField("Device", d.id).Error("Device is too old to support healthchecking. Marking it unhealthy.")
-			controller.guaranteeDevicePlugin.healthCh <- d
-			controller.besteffortDeviceplugin.healthCh <- d
+			controller.GuaranteeDevicePlugin.healthCh <- d
+			controller.BesteffortDeviceplugin.healthCh <- d
 			continue
 		}
 		utils.FatalWhenError(err)
@@ -131,8 +131,8 @@ func (controller *AnylearnDevicePluginController) checkDeviceHealth() {
 			// All devices are unhealthy
 			log.WithField("Xid", e.Edata).Error("XidCriticalError, All devices will go unhealthy.")
 			for _, d := range controller.cachedDevices {
-				controller.guaranteeDevicePlugin.healthCh <- d
-				controller.besteffortDeviceplugin.healthCh <- d
+				controller.GuaranteeDevicePlugin.healthCh <- d
+				controller.BesteffortDeviceplugin.healthCh <- d
 			}
 			continue
 		}
@@ -152,8 +152,8 @@ func (controller *AnylearnDevicePluginController) checkDeviceHealth() {
 					"Xid":    e.Edata,
 					"Device": d.id,
 				}).Error("XidCriticalError, the device will go unhealthy.")
-				controller.guaranteeDevicePlugin.healthCh <- d
-				controller.besteffortDeviceplugin.healthCh <- d
+				controller.GuaranteeDevicePlugin.healthCh <- d
+				controller.BesteffortDeviceplugin.healthCh <- d
 			}
 		}
 	}
