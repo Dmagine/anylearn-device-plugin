@@ -1,14 +1,14 @@
-package client
+package kubelet
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"time"
 
-	v1 "k8s.io/api/core/v1"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/client-go/rest"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
 )
@@ -37,7 +37,25 @@ type KubeletClient struct {
 	client      *http.Client
 }
 
-func NewKubeletClient(config *KubeletClientConfig) (*KubeletClient, error) {
+func NewKubeletClientInCluster() (*KubeletClient, error) {
+	var err error
+	var token string
+	var tokenByte []byte
+	tokenByte, err = ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
+	if err != nil {
+		panic(fmt.Errorf("in cluster mode, find token failed, error: %v", err))
+	}
+	token = string(tokenByte)
+	config := &KubeletClientConfig{
+		Address: "127.0.0.1",
+		Port:    10250,
+		TLSClientConfig: rest.TLSClientConfig{
+			Insecure:   true,
+			ServerName: "kubelet",
+		},
+		BearerToken: token,
+		HTTPTimeout: 20 * time.Second,
+	}
 	trans, err := makeTransport(config, true)
 	if err != nil {
 		return nil, err
@@ -115,21 +133,4 @@ func ReadAll(r io.Reader) ([]byte, error) {
 			return b, err
 		}
 	}
-}
-
-func (k *KubeletClient) GetNodeRunningPods() (*v1.PodList, error) {
-	resp, err := k.client.Get(fmt.Sprintf("https://%v:%d/pods/", k.host, k.defaultPort))
-	if err != nil {
-		return nil, err
-	}
-
-	body, err := ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	podLists := &v1.PodList{}
-	if err = json.Unmarshal(body, &podLists); err != nil {
-		return nil, err
-	}
-	return podLists, err
 }

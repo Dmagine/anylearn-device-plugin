@@ -1,4 +1,4 @@
-package main
+package deviceplugin
 
 import (
 	"fmt"
@@ -8,26 +8,65 @@ import (
 	"strings"
 
 	"github.com/NVIDIA/gpu-monitoring-tools/bindings/go/nvml"
+	"github.com/dmagine/anylearn-device-plugin/pkg/utils"
+
+	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
-func (controller *AnylearnDeviceController) Devices() []*Device {
+type Device struct {
+	device  *nvml.Device
+	id      string
+	path    string
+	index   string
+	gtaken  bool
+	betaken bool
+	health  string
+}
+
+func buildDevice(d *nvml.Device, path string, index string) *Device {
+	dev := Device{}
+	dev.device = d
+	dev.id = d.UUID
+	dev.path = path
+	dev.index = index
+	dev.health = pluginapi.Healthy
+	return &dev
+}
+
+func buildAPIDevice(d *Device) *pluginapi.Device {
+	dev := &pluginapi.Device{}
+	dev.ID = d.id
+	dev.Health = d.health
+	if d.device.CPUAffinity != nil {
+		dev.Topology = &pluginapi.TopologyInfo{
+			Nodes: []*pluginapi.NUMANode{
+				{
+					ID: int64(*(d.device.CPUAffinity)),
+				},
+			},
+		}
+	}
+	return dev
+}
+
+func (controller *AnylearnDevicePluginController) Devices() []*Device {
 	n, err := nvml.GetDeviceCount()
-	fatalWhenError(err)
+	utils.FatalWhenError(err)
 
 	var devs []*Device
 	for i := uint(0); i < n; i++ {
 		d, err := nvml.NewDeviceLite(i)
-		fatalWhenError(err)
+		utils.FatalWhenError(err)
 		devs = append(devs, buildDevice(d, d.Path, fmt.Sprintf("%v", i)))
 	}
 
 	return devs
 }
 
-func CheckHealth(stop <-chan interface{}, devices []*Device, unhealthy chan<- *Device) {
-	disableHealthChecks := strings.ToLower(os.Getenv(envDisableHealthChecks))
+func CheckHealth(stop <-chan interface{}, devices []*Device, unhealthy []chan<- *Device) {
+	disableHealthChecks := strings.ToLower(os.Getenv(utils.EnvDisableHealthChecks))
 	if disableHealthChecks == "all" {
-		disableHealthChecks = allHealthChecks
+		disableHealthChecks = utils.AllHealthChecks
 	}
 	if strings.Contains(disableHealthChecks, "xids") {
 		return
@@ -65,10 +104,12 @@ func CheckHealth(stop <-chan interface{}, devices []*Device, unhealthy chan<- *D
 		err = nvml.RegisterEventForDevice(eventSet, nvml.XidCriticalError, gpu)
 		if err != nil && strings.HasSuffix(err.Error(), "Not Supported") {
 			log.Printf("Warning: %s is too old to support healthchecking: %s. Marking it unhealthy.", d.id, err)
-			unhealthy <- d
+			for _, ch := range unhealthy {
+				ch <- d
+			}
 			continue
 		}
-		fatalWhenError(err)
+		utils.FatalWhenError(err)
 	}
 
 	for {
@@ -91,7 +132,9 @@ func CheckHealth(stop <-chan interface{}, devices []*Device, unhealthy chan<- *D
 			// All devices are unhealthy
 			log.Printf("XidCriticalError: Xid=%d, All devices will go unhealthy.", e.Edata)
 			for _, d := range devices {
-				unhealthy <- d
+				for _, ch := range unhealthy {
+					ch <- d
+				}
 			}
 			continue
 		}
@@ -108,7 +151,9 @@ func CheckHealth(stop <-chan interface{}, devices []*Device, unhealthy chan<- *D
 
 			if gpu == *e.UUID && gi == *e.GpuInstanceId && ci == *e.ComputeInstanceId {
 				log.Printf("XidCriticalError: Xid=%d on Device=%s, the device will go unhealthy.", e.Edata, d.id)
-				unhealthy <- d
+				for _, ch := range unhealthy {
+					ch <- d
+				}
 			}
 		}
 	}

@@ -1,7 +1,7 @@
-package main
+package utils
 
 import (
-	log "github.com/golang/glog"
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 )
 
