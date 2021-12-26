@@ -24,12 +24,13 @@ func NewAnylearnAgent(
 	return &AnylearnAgent{
 		clientset:     clientset,
 		kubeletClient: kubeletClient,
+		databus:       utils.NewDataBus(),
 	}, nil
 }
 
 func (agent *AnylearnAgent) Start() (err error) {
 	log.Info("Init DevicePlugin")
-	agent.DevicePluginController, err = anyplugin.NewAnylearnDevicePluginController(agent.clientset, agent.kubeletClient)
+	agent.DevicePluginController, err = anyplugin.NewAnylearnDevicePluginController(agent.clientset, agent.kubeletClient, agent.databus)
 	if err != nil {
 		return
 	}

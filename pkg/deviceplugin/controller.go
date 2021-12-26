@@ -27,10 +27,12 @@ type AnylearnDevicePluginController struct {
 
 func NewAnylearnDevicePluginController(
 	clientset *kubernetes.Clientset,
-	kubeletClient *kubeletClient.KubeletClient) (*AnylearnDevicePluginController, error) {
+	kubeletClient *kubeletClient.KubeletClient,
+	databus *utils.DataBus) (*AnylearnDevicePluginController, error) {
 	controller := &AnylearnDevicePluginController{
 		clientset:     clientset,
 		kubeletClient: kubeletClient,
+		databus:       databus,
 	}
 	controller.GuaranteeDevicePlugin = &AnylearnDevicePlugin{
 		controller:     controller,
