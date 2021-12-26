@@ -53,11 +53,11 @@ func (agent *AnylearnAgent) Stop() (err error) {
 func (agent *AnylearnAgent) Restart() (err error) {
 	err = agent.Stop()
 	if err != nil {
-		return err
+		return
 	}
 	err = agent.Start()
 	if err != nil {
-		return err
+		return
 	}
-	return nil
+	return
 }
