@@ -3,15 +3,18 @@ package agent
 import (
 	anyplugin "github.com/dmagine/anylearn-device-plugin/pkg/deviceplugin"
 	kubeletClient "github.com/dmagine/anylearn-device-plugin/pkg/kubelet"
+
 	anyprobe "github.com/dmagine/anylearn-device-plugin/pkg/sysprobe"
 	"github.com/dmagine/anylearn-device-plugin/pkg/utils"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
+	corelisters "k8s.io/client-go/listers/core/v1"
 )
 
 type AnylearnAgent struct {
 	clientset     *kubernetes.Clientset
 	kubeletClient *kubeletClient.KubeletClient
+	podlister     *corelisters.PodLister
 	databus       *utils.DataBus
 
 	DevicePluginController *anyplugin.AnylearnDevicePluginController
@@ -20,7 +23,8 @@ type AnylearnAgent struct {
 
 func NewAnylearnAgent(
 	clientset *kubernetes.Clientset,
-	kubeletClient *kubeletClient.KubeletClient) (*AnylearnAgent, error) {
+	kubeletClient *kubeletClient.KubeletClient,
+	podLister *corelisters.PodLister) (*AnylearnAgent, error) {
 	return &AnylearnAgent{
 		clientset:     clientset,
 		kubeletClient: kubeletClient,
@@ -30,7 +34,12 @@ func NewAnylearnAgent(
 
 func (agent *AnylearnAgent) Start() (err error) {
 	log.Info("Init DevicePlugin")
-	agent.DevicePluginController, err = anyplugin.NewAnylearnDevicePluginController(agent.clientset, agent.kubeletClient, agent.databus)
+	agent.DevicePluginController, err = anyplugin.NewAnylearnDevicePluginController(
+		agent.clientset,
+		agent.kubeletClient,
+		agent.podlister,
+		agent.databus,
+	)
 	if err != nil {
 		return
 	}

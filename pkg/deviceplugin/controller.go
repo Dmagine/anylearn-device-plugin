@@ -6,6 +6,7 @@ import (
 	"github.com/dmagine/anylearn-device-plugin/pkg/utils"
 	"github.com/fsnotify/fsnotify"
 	"k8s.io/client-go/kubernetes"
+	corelisters "k8s.io/client-go/listers/core/v1"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 
 	log "github.com/sirupsen/logrus"
@@ -14,6 +15,7 @@ import (
 type AnylearnDevicePluginController struct {
 	clientset     *kubernetes.Clientset
 	kubeletClient *kubeletClient.KubeletClient
+	podlister     *corelisters.PodLister
 	databus       *utils.DataBus
 
 	stopCh  chan interface{}
@@ -28,6 +30,7 @@ type AnylearnDevicePluginController struct {
 func NewAnylearnDevicePluginController(
 	clientset *kubernetes.Clientset,
 	kubeletClient *kubeletClient.KubeletClient,
+	podLister *corelisters.PodLister,
 	databus *utils.DataBus) (*AnylearnDevicePluginController, error) {
 	controller := &AnylearnDevicePluginController{
 		clientset:     clientset,
