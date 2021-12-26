@@ -1,7 +1,6 @@
 package deviceplugin
 
 import (
-	"log"
 	"net"
 	"os"
 	"time"
@@ -9,6 +8,8 @@ import (
 	"github.com/NVIDIA/go-gpuallocator/gpuallocator"
 	"github.com/dmagine/anylearn-device-plugin/pkg/utils"
 	"google.golang.org/grpc"
+
+	log "github.com/sirupsen/logrus"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
@@ -71,19 +72,22 @@ func (p *AnylearnDevicePlugin) Start() error {
 
 	err := p.Serve()
 	if err != nil {
-		log.Printf("Could not start device plugin for '%s': %s", p.resourceName, err)
+		log.WithError(err).WithField("Resource", p.resourceName).Error("Could not start device plugin.")
 		p.cleanup()
 		return err
 	}
-	log.Printf("Starting to serve '%s' on %s", p.resourceName, p.socket)
+	log.WithFields(log.Fields{
+		"Resource": p.resourceName,
+		"Socket":   p.socket,
+	}).Info("Starting to serve")
 
 	err = p.Register()
 	if err != nil {
-		log.Printf("Could not register device plugin: %s", err)
+		log.WithError(err).Error("Could not register device plugin")
 		p.Stop()
 		return err
 	}
-	log.Printf("Registered device plugin for '%s' with Kubelet", p.resourceName)
+	log.WithField("Resource", p.resourceName).Info("Registered device plugin with Kubelet")
 
 	return nil
 }
@@ -93,7 +97,10 @@ func (p *AnylearnDevicePlugin) Stop() error {
 	if p == nil || p.server == nil {
 		return nil
 	}
-	log.Printf("Stopping to serve '%s' on %s", p.resourceName, p.socket)
+	log.WithFields(log.Fields{
+		"Resource": p.resourceName,
+		"Socket":   p.socket,
+	}).Info("Stopping to serve")
 	p.server.Stop()
 	if err := os.Remove(p.socket); err != nil && !os.IsNotExist(err) {
 		return err
@@ -116,13 +123,13 @@ func (p *AnylearnDevicePlugin) Serve() error {
 		lastCrashTime := time.Now()
 		restartCount := 0
 		for {
-			log.Printf("Starting GRPC server for '%s'", p.resourceName)
+			log.WithField("Resource", p.resourceName).Info("Starting GRPC server")
 			err := p.server.Serve(sock)
 			if err == nil {
 				break
 			}
 
-			log.Printf("GRPC server for '%s' crashed with error: %v", p.resourceName, err)
+			log.WithError(err).WithField("Resource", p.resourceName).Error("GRPC server crashed with error.")
 
 			// restart if it has not been too often
 			// i.e. if server has crashed more than 5 times and it didn't last more than one hour each time

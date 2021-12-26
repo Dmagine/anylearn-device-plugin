@@ -45,9 +45,9 @@ func (p *AnylearnDevicePlugin) ListAndWatch(e *pluginapi.Empty, s pluginapi.Devi
 			// FIXME: there is no way to recover from the Unhealthy state.
 			d.health = pluginapi.Unhealthy
 			log.WithFields(log.Fields{
-				"resource": p.resourceName,
-				"id":       d.id,
-			}).Warn("Device marked unhealthy")
+				"Resource": p.resourceName,
+				"Device":   d.id,
+			}).Error("Device marked unhealthy")
 			s.Send(&pluginapi.ListAndWatchResponse{Devices: p.apiDevices()})
 		case <-p.takenCh:
 			s.Send(&pluginapi.ListAndWatchResponse{Devices: p.apiDevices()})

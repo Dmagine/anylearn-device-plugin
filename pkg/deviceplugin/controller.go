@@ -48,10 +48,8 @@ func (controller *AnylearnDevicePluginController) Start() error {
 		return err
 	}
 	controller.cachedDevices = controller.Devices()
-	go CheckHealth(controller.stopCh, controller.cachedDevices, []chan<- *Device{
-		controller.guaranteeDevicePlugin.healthCh,
-		controller.besteffortDeviceplugin.healthCh,
-	})
+	go controller.checkDeviceHealth()
+
 	if err := controller.guaranteeDevicePlugin.Start(); err != nil {
 		return err
 	}

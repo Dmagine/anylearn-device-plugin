@@ -2,7 +2,6 @@ package deviceplugin
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"github.com/NVIDIA/gpu-monitoring-tools/bindings/go/nvml"
 	"github.com/dmagine/anylearn-device-plugin/pkg/utils"
 
+	log "github.com/sirupsen/logrus"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
@@ -63,7 +63,7 @@ func (controller *AnylearnDevicePluginController) Devices() []*Device {
 	return devs
 }
 
-func CheckHealth(stop <-chan interface{}, devices []*Device, unhealthy []chan<- *Device) {
+func (controller *AnylearnDevicePluginController) checkDeviceHealth() {
 	disableHealthChecks := strings.ToLower(os.Getenv(utils.EnvDisableHealthChecks))
 	if disableHealthChecks == "all" {
 		disableHealthChecks = utils.AllHealthChecks
@@ -95,7 +95,7 @@ func CheckHealth(stop <-chan interface{}, devices []*Device, unhealthy []chan<- 
 	eventSet := nvml.NewEventSet()
 	defer nvml.DeleteEventSet(eventSet)
 
-	for _, d := range devices {
+	for _, d := range controller.cachedDevices {
 		gpu, _, _, err := nvml.ParseMigDeviceUUID(d.id)
 		if err != nil {
 			gpu = d.id
@@ -103,10 +103,9 @@ func CheckHealth(stop <-chan interface{}, devices []*Device, unhealthy []chan<- 
 
 		err = nvml.RegisterEventForDevice(eventSet, nvml.XidCriticalError, gpu)
 		if err != nil && strings.HasSuffix(err.Error(), "Not Supported") {
-			log.Printf("Warning: %s is too old to support healthchecking: %s. Marking it unhealthy.", d.id, err)
-			for _, ch := range unhealthy {
-				ch <- d
-			}
+			log.WithError(err).WithField("Device", d.id).Error("Device is too old to support healthchecking. Marking it unhealthy.")
+			controller.guaranteeDevicePlugin.healthCh <- d
+			controller.besteffortDeviceplugin.healthCh <- d
 			continue
 		}
 		utils.FatalWhenError(err)
@@ -114,7 +113,7 @@ func CheckHealth(stop <-chan interface{}, devices []*Device, unhealthy []chan<- 
 
 	for {
 		select {
-		case <-stop:
+		case <-controller.stopCh:
 			return
 		default:
 		}
@@ -130,16 +129,15 @@ func CheckHealth(stop <-chan interface{}, devices []*Device, unhealthy []chan<- 
 
 		if e.UUID == nil || len(*e.UUID) == 0 {
 			// All devices are unhealthy
-			log.Printf("XidCriticalError: Xid=%d, All devices will go unhealthy.", e.Edata)
-			for _, d := range devices {
-				for _, ch := range unhealthy {
-					ch <- d
-				}
+			log.WithField("Xid", e.Edata).Error("XidCriticalError, All devices will go unhealthy.")
+			for _, d := range controller.cachedDevices {
+				controller.guaranteeDevicePlugin.healthCh <- d
+				controller.besteffortDeviceplugin.healthCh <- d
 			}
 			continue
 		}
 
-		for _, d := range devices {
+		for _, d := range controller.cachedDevices {
 			// Please see https://github.com/NVIDIA/gpu-monitoring-tools/blob/148415f505c96052cb3b7fdf443b34ac853139ec/bindings/go/nvml/nvml.h#L1424
 			// for the rationale why gi and ci can be set as such when the UUID is a full GPU UUID and not a MIG device UUID.
 			gpu, gi, ci, err := nvml.ParseMigDeviceUUID(d.id)
@@ -150,10 +148,12 @@ func CheckHealth(stop <-chan interface{}, devices []*Device, unhealthy []chan<- 
 			}
 
 			if gpu == *e.UUID && gi == *e.GpuInstanceId && ci == *e.ComputeInstanceId {
-				log.Printf("XidCriticalError: Xid=%d on Device=%s, the device will go unhealthy.", e.Edata, d.id)
-				for _, ch := range unhealthy {
-					ch <- d
-				}
+				log.WithFields(log.Fields{
+					"Xid":    e.Edata,
+					"Device": d.id,
+				}).Error("XidCriticalError, the device will go unhealthy.")
+				controller.guaranteeDevicePlugin.healthCh <- d
+				controller.besteffortDeviceplugin.healthCh <- d
 			}
 		}
 	}
@@ -175,7 +175,7 @@ func getAdditionalXids(input string) []uint64 {
 		}
 		xid, err := strconv.ParseUint(trimmed, 10, 64)
 		if err != nil {
-			log.Printf("Ignoring malformed Xid value %v: %v", trimmed, err)
+			log.WithError(err).WithField("Xid", trimmed).Error("Ignoring malformed Xid value.")
 			continue
 		}
 		additionalXids = append(additionalXids, xid)
